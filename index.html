@@ -1,0 +1,564 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Local Yatri — Advance Transit</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+<style>
+  :root{
+    --bg:linear-gradient(135deg,#74ebd5,#9face6);
+    --card:#fff; --text:#111; --accent:#10b981;
+  }
+  body.dark{ --bg:linear-gradient(135deg,#111,#000); --card:#232323; --text:#eee; --accent:#34d399; }
+  body{margin:0;font-family:Inter, "Segoe UI", Arial,sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
+  header{background:rgba(0,0,0,0.06);padding:12px 18px;display:flex;justify-content:space-between;align-items:center}
+  header b{color:var(--accent)}
+  main{display:grid;grid-template-columns:260px 1fr 360px;gap:12px;padding:12px}
+  .card{background:var(--card);border-radius:10px;padding:12px;box-shadow:0 6px 18px rgba(0,0,0,0.08)}
+  h3{margin:0 0 8px;font-size:16px}
+  #map{height:320px;border-radius:8px}
+  video#appVideo {
+    display: block;
+    margin-top: 12px;
+    width: 100%;
+    border-radius: 8px;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+  }
+  button{background:var(--accent);color:#fff;border:none;padding:6px 10px;border-radius:6px;cursor:pointer}
+  .row{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid rgba(0,0,0,0.06)}
+  .row:last-child{border-bottom:none}
+  .loader{display:none;margin:auto;border:4px solid #ddd;border-top:4px solid var(--accent);width:28px;height:28px;border-radius:50%;animation:spin 1s linear infinite}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  #msg{display:none;text-align:center;margin-top:8px;color:var(--accent);font-weight:600}
+  .ticket{background:#f0fff6;border:1px dashed var(--accent);padding:8px;border-radius:8px;margin-top:8px}
+  .txRow{font-size:13px;padding:6px 0;border-bottom:1px solid rgba(0,0,0,0.06)}
+  .bus-icon{display:flex;flex-direction:column;align-items:center}
+  .bus-icon img{width:28px;height:28px}
+  .bus-icon span{font-size:12px;font-weight:700;background:#fff;padding:2px 6px;border-radius:6px;margin-top:4px;color:#111}
+  body.dark .card, body.dark .txRow, body.dark .ticket{background:#222;color:var(--text)}
+  /* Info panel */
+  #infoPanel{margin-top:10px;background:#eefdf5;padding:10px;border-radius:8px}
+  body.dark #infoPanel{background:#1b2b22}
+  /* Chatbot styles (left column, under stops) */
+  #chatCard{margin-top:12px;display:flex;flex-direction:column;height:350px}
+  #chatWindow{flex:1;overflow:auto;padding:8px;border-radius:8px;background:#fafafa;border:1px solid #eee}
+  body.dark #chatWindow{background:#131313;border-color:#2a2a2a}
+  .chatMsg{padding:6px 10px;border-radius:8px;margin:6px 0;max-width:78%}
+  .chatUser{background:var(--accent);color:#fff;margin-left:auto}
+  .chatBot{background:#eee;color:#111}
+  body.dark .chatBot{background:#2a2a2a;color:#ddd}
+  #chatInput{display:flex;margin-top:8px}
+  #chatInput input{flex:1;padding:8px;border-radius:6px 0 0 6px;border:1px solid #ddd;outline:none}
+  #chatInput button{border-radius:0 6px 6px 0}
+  /* Feedback form styles */
+  #feedbackForm {
+    margin-top: 12px;
+    padding: 12px;
+    background: var(--card);
+    border-radius: 8px;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.06);
+    color: var(--text);
+  }
+  #feedbackForm label {
+    display: block;
+    margin-bottom: 6px;
+    font-weight: 600;
+  }
+  #feedbackForm textarea {
+    width: 100%;
+    resize: vertical;
+    min-height: 60px;
+    padding: 8px;
+    border-radius: 6px;
+    border: 1px solid #ddd;
+    font-family: inherit;
+    font-size: 14px;
+  }
+  #feedbackForm button {
+    margin-top: 8px;
+    width: 100%;
+  }
+  body.dark #feedbackForm {
+    background: #222;
+    color: var(--text);
+  }
+  body.dark #feedbackForm textarea {
+    background: #333;
+    border: 1px solid #444;
+    color: var(--text);
+  }
+  /* Login overlay */
+  #loginOverlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.6);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+  }
+  #loginBox {
+    width: 360px;
+    background: #fff;
+    border-radius: 10px;
+    padding: 18px;
+    box-shadow: 0 8px 30px rgba(0,0,0,0.4);
+  }
+  #loginBox h2 {
+    margin: 0 0 10px;
+    text-align: center;
+    color: #111;
+  }
+  #loginBox input, #loginBox select {
+    width: 100%;
+    padding: 8px;
+    margin-top: 8px;
+    border-radius: 6px;
+    border: 1px solid #ddd;
+    outline: none;
+    font-size: 14px;
+  }
+  #loginBox button {
+    margin-top: 12px;
+    width: 100%;
+    padding: 10px;
+    border-radius: 6px;
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    cursor: pointer;
+    font-size: 16px;
+    font-weight: 600;
+  }
+  #loginSmall {
+    font-size: 13px;
+    text-align: center;
+    margin-top: 8px;
+    color: #666;
+  }
+  @media (max-width: 1000px) {
+    main {
+      grid-template-columns: 1fr;
+    }
+    #map {
+      height: 240px;
+    }
+    #loginBox {
+      width: 90%;
+    }
+  }
+</style>
+</head>
+<body>
+<!-- LOGIN OVERLAY (shows on page load) -->
+<div id="loginOverlay" aria-modal="true" role="dialog">
+  <div id="loginBox" role="form" aria-labelledby="loginTitle">
+    <h2 id="loginTitle">Welcome to Local Yatri</h2>
+    <input id="inpUsername" placeholder="Username (display name)" autocomplete="off" />
+    <input id="inpAge" type="number" placeholder="Age" min="1" max="120" autocomplete="off" />
+    <select id="inpGender" >
+      <option value="">Select gender</option>
+      <option>Male</option>
+      <option>Female</option>
+      <option>Other</option>
+    </select>
+    <input id="inpNumber" placeholder="Phone number" autocomplete="off" />
+    <input id="inpOccupation" placeholder="Occupation" autocomplete="off" />
+    <button id="loginSubmit">Login & Continue</button>
+    <div id="loginSmall">Your info is stored locally in browser (for demo).</div>
+  </div>
+</div>
+<header>
+  <div>
+    🚌 Local <b>Yatri</b> — Smart Bus Tracker
+    <div style="font-size:13px;margin-top:4px">Customer: <b id="custDisplay">Not logged</b></div>
+  </div>
+  <div>
+    <button id="logoutBtn" style="display:none">Logout</button>
+    <button id="modeToggle">🌙 Dark Mode</button>
+    <button id="toggleMap">🗺️ Hide Map</button>
+    <button id="soundToggle">🔊 Sound ON</button>
+  </div>
+</header>
+<main id="appMain" style="display:none">
+  <!-- LEFT: Stops + Chatbot + Feedback -->
+  <section class="card">
+    <h3>Nearby Stops</h3>
+    <div id="stops"></div>
+    <!-- Chatbot -->
+    <div id="chatCard">
+      <h3 style="margin-top:10px">Chatbot Assistant</h3>
+      <div id="chatWindow" aria-live="polite"></div>
+      <div id="chatInput">
+        <input id="chatText" placeholder="Ask about bus, stop, balance..." autocomplete="off" />
+        <button id="chatSend">Send</button>
+      </div>
+    </div>
+    <!-- Feedback Form -->
+    <form id="feedbackForm" aria-label="Feedback Form">
+      <h3>Feedback</h3>
+      <label for="feedbackText">Your feedback</label>
+      <textarea id="feedbackText" placeholder="Write your feedback here..." required></textarea>
+      <button type="submit">Submit Feedback</button>
+    </form>
+  </section>
+  <!-- CENTER: Map + Video -->
+  <section class="card" id="mapCard">
+    <h3>Live Map</h3>
+    <div id="map"></div>
+    <video id="appVideo" controls>
+      <source src="localyatri.mp4" type="video/mp4">
+      Your browser does not support the video tag.
+    </video>
+    <div style="margin-top:10px;display:flex;gap:8px;align-items:center">
+      <div>Selected Bus: <b id="selBus">None</b></div>
+      <div style="margin-left:12px">ETA: <b id="eta">--</b></div>
+      <div style="margin-left:auto"><button id="refresh">Refresh</button></div>
+    </div>
+    <div class="loader" id="loader"></div>
+    <div id="msg">Action Successful ✅</div>
+  </section>
+  <!-- RIGHT: Buses, Wallet, Info, Tickets, Transactions -->
+  <section class="card">
+    <h3>Buses</h3>
+    <div id="busesList"></div>
+    <h3 style="margin-top:12px">Wallet</h3>
+    Balance: ₹<b id="balance">100</b><br />
+    <button id="addBalance">+ Add Balance</button>
+    <h3 style="margin-top:12px">Info Panel</h3>
+    <div id="infoPanel">Select a bus and a stop to see details.</div>
+    <h3 style="margin-top:12px">Tickets</h3>
+    <div id="tickets">No tickets yet.</div>
+    <h3 style="margin-top:12px">Recent Transactions</h3>
+    <div id="txLog">No transactions yet.</div>
+  </section>
+</main>
+<audio id="ding" src="https://actions.google.com/sounds/v1/alarms/digital_watch_alarm_long.ogg" preload="auto"></audio>
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+<script>
+/* ========== LOGIN HANDLING ========== */
+const loginOverlay = document.getElementById('loginOverlay');
+const loginSubmit = document.getElementById('loginSubmit');
+const inpUsername = document.getElementById('inpUsername');
+const inpAge = document.getElementById('inpAge');
+const inpGender = document.getElementById('inpGender');
+const inpNumber = document.getElementById('inpNumber');
+const inpOccupation = document.getElementById('inpOccupation');
+const custDisplay = document.getElementById('custDisplay');
+const logoutBtn = document.getElementById('logoutBtn');
+const appMain = document.getElementById('appMain');
+// Restore user from localStorage if present
+const savedUser = JSON.parse(localStorage.getItem('localYatriUser') || 'null');
+if(savedUser && savedUser.username){
+  inpUsername.value = savedUser.username || '';
+  inpAge.value = savedUser.age || '';
+  inpGender.value = savedUser.gender || '';
+  inpNumber.value = savedUser.number || '';
+  inpOccupation.value = savedUser.occupation || '';
+  showLoggedIn(savedUser.username);
+} else {
+  loginOverlay.style.display = 'flex';
+}
+// Login button click
+loginSubmit.addEventListener('click', () => {
+  const username = inpUsername.value.trim();
+  const age = inpAge.value.trim();
+  const gender = inpGender.value;
+  const number = inpNumber.value.trim();
+  const occupation = inpOccupation.value.trim();
+  if(!username || !age || !gender || !number || !occupation){
+    alert('Please fill all fields to continue.');
+    return;
+  }
+  if(isNaN(age) || age < 1 || age > 120){
+    alert('Please enter a valid age between 1 and 120.');
+    return;
+  }
+  if(!/^\d{10,15}$/.test(number)){
+    alert('Please enter a valid phone number (10-15 digits).');
+    return;
+  }
+  const user = { username, age, gender, number, occupation };
+  localStorage.setItem('localYatriUser', JSON.stringify(user));
+  showLoggedIn(username);
+  loginOverlay.style.display = 'none';
+});
+function showLoggedIn(username){
+  custDisplay.textContent = username;
+  logoutBtn.style.display = 'inline-block';
+  appMain.style.display = 'grid';
+}
+logoutBtn.addEventListener('click', () => {
+  if(confirm('Logout?')){
+    localStorage.removeItem('localYatriUser');
+    custDisplay.textContent = 'Not logged';
+    logoutBtn.style.display = 'none';
+    appMain.style.display = 'none';
+    loginOverlay.style.display = 'flex';
+  }
+});
+/* ========== MAP & DATA ========== */
+const map = L.map('map').setView([24.587, 73.687], 14);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap' }).addTo(map);
+const routes = {
+  B1: [[24.583,73.680],[24.585,73.685],[24.590,73.689],[24.596,73.684],[24.600,73.690]],
+  B2: [[24.590,73.689],[24.592,73.692],[24.595,73.695],[24.598,73.700]],
+  B3: [[24.583,73.680],[24.581,73.685],[24.579,73.690],[24.577,73.695]],
+  B4: [[24.600,73.690],[24.605,73.692],[24.610,73.695],[24.615,73.698]],
+  B5: [[24.577,73.695],[24.575,73.699],[24.572,73.702],[24.570,73.705]]
+};
+const stops = [
+  { id: 'S1', name: 'Bus Stand', lat:24.583, lng:73.680, price: 10 },
+  { id: 'S2', name: 'Central Market', lat:24.590, lng:73.689, price: 15 },
+  { id: 'S3', name: 'College Gate', lat:24.596, lng:73.684, price: 12 },
+  { id: 'S4', name: 'University', lat:24.605, lng:73.692, price: 18 },
+  { id: 'S5', name: 'City Mall', lat:24.610, lng:73.695, price: 20 },
+  { id: 'S6', name: 'Tech Park', lat:24.572, lng:73.702, price: 25 }
+];
+const buses = [
+  { id: 'B1', fare: 15, passengers: 0 },
+  { id: 'B2', fare: 20, passengers: 0 },
+  { id: 'B3', fare: 12, passengers: 0 },
+  { id: 'B4', fare: 18, passengers: 0 },
+  { id: 'B5', fare: 22, passengers: 0 }
+];
+let busMarkers = {}, busIndex = {B1:0,B2:0,B3:0,B4:0,B5:0};
+let selectedStop = null, selectedBus = null;
+let balance = 100;
+let soundEnabled = true;
+const stopsDiv = document.getElementById('stops');
+stops.forEach(s => {
+  L.marker([s.lat, s.lng]).addTo(map).bindPopup(`<b>${s.name}</b>`);
+  const row = document.createElement('div');
+  row.className = 'row';
+  row.innerHTML = `<div>${s.name} — ₹${s.price}</div><div><button data-id="${s.id}">Select</button></div>`;
+  row.querySelector('button').onclick = () => {
+    selectedStop = s;
+    showSuccess(`Stop ${s.name} selected`);
+    updateInfoPanel();
+  };
+  stopsDiv.appendChild(row);
+});
+function createBusIcon(bus){
+  const html = `<div class="bus-icon">
+    <img src="https://cdn-icons-png.flaticon.com/512/1995/1995470.png" alt="bus">
+    <span>${bus.id} (${bus.passengers})</span>
+  </div>`;
+  return L.divIcon({ html, className: '', iconSize:[40,40], iconAnchor:[20,20] });
+}
+buses.forEach(b => {
+  const start = routes[b.id][0];
+  busMarkers[b.id] = L.marker(start, { icon: createBusIcon(b) }).addTo(map).bindPopup(`Bus ${b.id}`);
+});
+const busesList = document.getElementById('busesList');
+function updateBusList(){
+  busesList.innerHTML = '';
+  buses.forEach(b => {
+    const div = document.createElement('div');
+    div.className = 'row';
+    div.innerHTML = `<div><b>${b.id}</b> (Passengers: ${b.passengers})</div>
+                     <div>
+                       <button data-id="${b.id}" class="selectBus">Select</button>
+                       <button data-id="${b.id}" class="trackBus">Track</button>
+                     </div>`;
+    div.querySelector('.selectBus').onclick = () => selectBus(b);
+    div.querySelector('.trackBus').onclick = () => {
+      map.panTo(busMarkers[b.id].getLatLng());
+      showSuccess(`Tracking ${b.id}`);
+    };
+    busesList.appendChild(div);
+  });
+}
+updateBusList();
+const ticketsDiv = document.getElementById('tickets');
+const txLog = document.getElementById('txLog');
+function selectBus(bus){
+  if(balance < bus.fare){
+    alert('Insufficient balance!');
+    return;
+  }
+  balance -= bus.fare;
+  bus.passengers++;
+  selectedBus = bus;
+  document.getElementById('balance').textContent = balance;
+  const slip = document.createElement('div');
+  slip.className = 'ticket';
+  slip.innerHTML = `<b>Ticket</b><br>Bus: ${bus.id}<br>Fare: ₹${bus.fare}<br>Time: ${new Date().toLocaleTimeString()}`;
+  ticketsDiv.prepend(slip);
+  const tx = document.createElement('div');
+  tx.className = 'txRow';
+  tx.textContent = `-${bus.fare} | Bus ${bus.id} | ${new Date().toLocaleTimeString()}`;
+  txLog.prepend(tx);
+  updateBusList();
+  updateBusIcons();
+  showSuccess(`Bus ${bus.id} Selected`, bus.id);
+  updateInfoPanel();
+}
+function moveBuses(){
+  buses.forEach(b => {
+    busIndex[b.id] = (busIndex[b.id] + 1) % routes[b.id].length;
+    const pos = routes[b.id][busIndex[b.id]];
+    busMarkers[b.id].setLatLng(pos);
+    busMarkers[b.id].setIcon(createBusIcon(b));
+    if(selectedStop){
+      checkStopAlert(pos, b.id, selectedStop);
+    }
+  });
+  if(selectedBus){
+    updateETAForSelected();
+  }
+}
+setInterval(moveBuses, 3000);
+function checkStopAlert(pos, busId, stop){
+  const dist = Math.sqrt((stop.lat - pos[0])**2 + (stop.lng - pos[1])**2);
+  if(dist < 0.002){
+    if(!busMarkers[busId].alerted){
+      if(soundEnabled){
+        const ding = document.getElementById('ding');
+        ding.currentTime = 0;
+        ding.play().catch(()=>{});
+      }
+      showSuccess(`Bus ${busId} reached ${stop.name}`);
+      appendChat(`Notification: Bus ${busId} reached ${stop.name}`, 'bot');
+      busMarkers[busId].alerted = true;
+    }
+  } else {
+    busMarkers[busId].alerted = false;
+  }
+}
+function updateBusIcons(){
+  buses.forEach(b => {
+    if(busMarkers[b.id]) busMarkers[b.id].setIcon(createBusIcon(b));
+  });
+}
+const loader = document.getElementById('loader');
+const msg = document.getElementById('msg');
+function showSuccess(text, busId){
+  loader.style.display = 'block';
+  msg.style.display = 'none';
+  setTimeout(()=> {
+    loader.style.display = 'none';
+    msg.textContent = text + ' ✅';
+    msg.style.display = 'block';
+    if(busId) document.getElementById('selBus').textContent = busId;
+  }, 700);
+  setTimeout(()=> msg.style.display = 'none', 3000);
+}
+function updateInfoPanel(){
+  const info = document.getElementById('infoPanel');
+  let html = '';
+  html += selectedBus ? `<div><b>Bus:</b> ${selectedBus.id} (Passengers: ${selectedBus.passengers})</div>` : `<div><b>Bus:</b> None</div>`;
+  html += selectedStop ? `<div><b>Stop:</b> ${selectedStop.name} — ₹${selectedStop.price}</div>` : `<div><b>Stop:</b> None</div>`;
+  if(selectedBus && selectedStop){
+    html += `<div style="margin-top:8px"><b>Fare:</b> ₹${selectedBus.fare}</div>`;
+  }
+  html += `<div style="margin-top:8px"><b>Wallet:</b> ₹${balance}</div>`;
+  const etaText = document.getElementById('eta').textContent;
+  if(etaText && etaText !== '--') html += `<div style="margin-top:8px"><b>ETA:</b> ${etaText}</div>`;
+  info.innerHTML = html;
+}
+function updateETAForSelected(){
+  if(!selectedBus || !selectedStop) { 
+    document.getElementById('eta').textContent = '--'; 
+    updateInfoPanel(); 
+    return; 
+  }
+  const idx = busIndex[selectedBus.id];
+  const route = routes[selectedBus.id];
+  const nextIdx = (idx + 1) % route.length;
+  const curr = route[idx];
+  const next = route[nextIdx];
+  const distDeg = Math.sqrt((next[0]-curr[0])**2 + (next[1]-curr[1])**2);
+  const distKm = distDeg * 111;
+  const speedKmh = 20;
+  const minutes = Math.max(1, Math.ceil((distKm / speedKmh) * 60));
+  document.getElementById('eta').textContent = `${minutes} min to next stop`;
+  updateInfoPanel();
+}
+document.getElementById('addBalance').onclick = () => {
+  balance += 50;
+  document.getElementById('balance').textContent = balance;
+  const tx = document.createElement('div'); 
+  tx.className='txRow'; 
+  tx.textContent = `+50 | Recharge | ${new Date().toLocaleTimeString()}`;
+  txLog.prepend(tx);
+  updateInfoPanel();
+};
+document.getElementById('refresh').onclick = ()=> showSuccess('Refreshed Successfully');
+document.getElementById('modeToggle').onclick = () => {
+  document.body.classList.toggle('dark');
+  document.getElementById('modeToggle').textContent = document.body.classList.contains('dark') ? '☀️ Light Mode' : '🌙 Dark Mode';
+};
+let mapVisible = true;
+document.getElementById('toggleMap').onclick = (e) => {
+  mapVisible = !mapVisible;
+  document.getElementById('mapCard').style.display = mapVisible ? 'block' : 'none';
+  e.target.textContent = mapVisible ? '🗺️ Hide Map' : '🗺️ Show Map';
+};
+document.getElementById('soundToggle').onclick = (e) => {
+  soundEnabled = !soundEnabled;
+  e.target.textContent = soundEnabled ? '🔊 Sound ON' : '🔇 Sound OFF';
+  if(!soundEnabled){
+    const ding = document.getElementById('ding');
+    ding.pause();
+    ding.currentTime = 0;
+  }
+};
+/* Chatbot */
+const chatWindow = document.getElementById('chatWindow');
+function appendChat(text, who='bot'){
+  const d = document.createElement('div');
+  d.className = 'chatMsg ' + (who === 'user' ? 'chatUser' : 'chatBot');
+  d.textContent = text;
+  chatWindow.appendChild(d);
+  chatWindow.scrollTop = chatWindow.scrollHeight;
+}
+document.getElementById('chatSend').onclick = sendChatMessage;
+document.getElementById('chatText').addEventListener('keydown', (e)=>{ if(e.key==='Enter') sendChatMessage(); });
+function sendChatMessage(){
+  const inp = document.getElementById('chatText');
+  const text = inp.value.trim();
+  if(!text) return;
+  appendChat(text, 'user');
+  inp.value = '';
+  setTimeout(()=> { appendChat(botAnswer(text), 'bot'); }, 450);
+}
+function botAnswer(msg){
+  const t = msg.toLowerCase();
+  if(t.includes('balance')) return `Your wallet balance is ₹${balance}.`;
+  if(t.includes('tickets') || t.includes('ticket')) {
+    const n = document.querySelectorAll('.ticket').length;
+    return `You have ${n} ticket(s) booked.`; 
+  }
+  if(t.includes('buses') || t.includes('bus')) return 'Running buses: ' + buses.map(b=>b.id).join(', ');
+  if(t.includes('stops') || t.includes('stop')) return 'Nearby stops: ' + stops.map(s=>s.name).join(', ');
+  if(t.includes('select stop')) return 'To select a stop, click the Select button next to the stop in the left column.';
+  if(t.includes('select bus')) return 'To select a bus, click Select in the Buses list on the right.';
+  if(t.includes('eta') || t.includes('time')) {
+    if(selectedBus && selectedStop) return `ETA for ${selectedBus.id} to ${selectedStop.name}: ${document.getElementById('eta').textContent}`;
+    return 'Select a bus and a stop to get ETA.';
+  }
+  if(t.includes('help') || t.includes('hi') || t.includes('hello')) return 'Hi! Ask me about balance, tickets, buses, stops or ETA.';
+  return "Sorry, I didn't understand. Try: 'balance', 'tickets', 'buses', 'stops', or 'eta'.";
+}
+/* Feedback Form */
+const feedbackForm = document.getElementById('feedbackForm');
+const feedbackText = document.getElementById('feedbackText');
+feedbackForm.addEventListener('submit', (e) => {
+  e.preventDefault();
+  const text = feedbackText.value.trim();
+  if(text){
+    alert('Thank you for your feedback!');
+    feedbackText.value = '';
+  } else {
+    alert('Please enter your feedback before submitting.');
+  }
+});
+/* Initial UI Setup */
+updateBusIcons();
+updateBusList();
+updateInfoPanel();
+</script>
+</body>
+</html>
